@@ -30,11 +30,15 @@ jobs:
 
       - name: Build and push Docker image to ECR
         run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          echo "Building Docker image: $IMAGE_URI"
-          docker build -t $IMAGE_URI .
-          docker push $IMAGE_URI
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+         - name: Build, tag, and push image to Amazon ECR
+  env:
+    AWS_REGION: us-east-1
+    ECR_REPOSITORY: medplux
+  run: |
+    IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${{ github.run_number }}
+    echo "Building Docker image: $IMAGE_URI"
+    docker build -t $IMAGE_URI .
+    docker push $IMAGE_URI
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.1.0
