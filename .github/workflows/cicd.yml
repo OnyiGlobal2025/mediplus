@@ -33,7 +33,7 @@ jobs:
          - name: Build, tag, and push image to Amazon ECR
   env:
     AWS_REGION: us-east-1
-    ECR_REPOSITORY: medplux
+    ECR_REPOSITORY: mediplus
   run: |
     IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${{ github.run_number }}
     echo "Building Docker image: $IMAGE_URI"
