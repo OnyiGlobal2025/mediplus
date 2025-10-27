@@ -1,14 +1,18 @@
-
-name: Build and Push to AWS ECR
+name: Push Docker Image to ECR 
 
 on:
   push:
     branches:
       - main
 
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: mediplus
+  IMAGE_TAG: v1  # <-- Change this value anytime from VS Code
+
 jobs:
-  build:
-    name: Build and Push Docker Image
+  build-and-push:
+    name: Build and Push Docker Image to ECR
     runs-on: ubuntu-latest
 
     steps:
@@ -20,18 +24,18 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build Docker image
+      - name: Build, Tag, and Push Docker image
         run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/mediplus:v1${{ github.run_number }}
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          echo "Building image with tag: $IMAGE_URI"
           docker build -t $IMAGE_URI .
-
-      - name: Push Docker image to ECR
-        run: |
           docker push $IMAGE_URI
+
+      - name: Show pushed image info
+        run: echo "✅ Image successfully pushed to ECR as: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}"
