@@ -8,7 +8,7 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: mediplus
-  IMAGE_TAG: v1  # <-- Change this value anytime from VS Code
+  IMAGE_TAG: v1.0.0  # <-- Change this value anytime from VS Code
 
 jobs:
   build-and-push:
