@@ -1,49 +1,64 @@
-name: Deploy to AWS EC2 from ECR
+
+name: Deploy to EC2 from ECR
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger deployment when pushing to main branch
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: mediplus
+  IMAGE_TAG: latest  # You can change this to a version like v1.0.0
 
 jobs:
-  deploy:
-    name: Build, Push, and Deploy
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
+      # Login to ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build Docker image
+      # Build, tag, and push Docker image to ECR
+      - name: Build and push Docker image
         run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/mediplus:${{ github.run_number }}
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          echo "Building Docker image: $IMAGE_URI"
           docker build -t $IMAGE_URI .
-
-      - name: Push Docker image to ECR
-        run: |
           docker push $IMAGE_URI
+          echo "Pushed image to ECR: $IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
+      # Deploy to EC2
       - name: Deploy to EC2 instance
         uses: appleboy/ssh-action@v1.1.0
         with:
-          host: ${{ secrets.EC2_PUBLIC_IP }}
-          username: ubuntu
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
-            docker pull $IMAGE_URI
+            echo "Pulling latest image from ECR..."
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+
+            docker pull ${{ env.IMAGE_URI }}
+
+            echo "Stopping old container (if any)..."
             docker stop mediplus || true
             docker rm mediplus || true
-            docker run -d -p 80:80 --name mediplus $IMAGE_URI
+
+            echo "Starting new container..."
+            docker run -d --name mediplus -p 80:80 ${{ env.IMAGE_URI }}
+            echo "✅ Deployment complete!"
