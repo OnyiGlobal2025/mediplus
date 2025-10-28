@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1                   # Change to your region
-  ECR_REPOSITORY: mediplus                # Change to your ECR repo name
-  IMAGE_TAG: ${{ github.run_number }}     # Auto increments each workflow run
-  CONTAINER_NAME: mediplus_app            # Docker container name on EC2
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: mediplus
+  IMAGE_TAG: ${{ github.run_number }}
+  CONTAINER_NAME: mediplus_app
 
 jobs:
   deploy:
@@ -19,6 +19,9 @@ jobs:
       # Step 1: Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       # Step 2: Configure AWS credentials
       - name: Configure AWS credentials
@@ -49,8 +52,8 @@ jobs:
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ec2-user                   # Use ubuntu if it’s an Ubuntu EC2
-          key: ${{ secrets.EC2_SSH_KEY }}      # Private key of your EC2 key pair
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "Logging into ECR..."
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
