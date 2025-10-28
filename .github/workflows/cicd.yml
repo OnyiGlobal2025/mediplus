@@ -1,25 +1,25 @@
-# name: Build and Push to ECR
+name: Build, Push to ECR, and Deploy to EC2
 
-# on:
-#   push:
-#     branches:
-#       - main
+on:
+  push:
+    branches: [ "main" ]
 
-# jobs:
-#   build-push:
-#     runs-on: ubuntu-latest
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v2
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
+<<<<<<< HEAD
 #       - name: Login to Amazon ECR
 #         run: |
 #           
@@ -28,4 +28,40 @@
 #           docker build -t mediplus .
 #           docker tag mediplus:latest 713923090919.dkr.ecr.us-east-1.amazonaws.com/mediplus:latest
 #           docker push 713923090919.dkr.ecr.us-east-1.amazonaws.com/mediplus:latest
+=======
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Build, tag, and push Docker image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: mediplus
+          IMAGE_TAG: v${{ github.run_number }}
+        run: |
+          echo "Building and pushing image..."
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "✅ Image pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+>>>>>>> e88b561674e21e23feab4e0082a065da41161058
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Logging into ECR..."
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            
+            echo "Stopping old container (if any)..."
+            docker stop mediplus || true && docker rm mediplus || true
+            
+            echo "Pulling latest image..."
+            docker pull ${{ steps.login-ecr.outputs.registry }}/mediplus:v${{ github.run_number }}
+            
+            echo "Running new container..."
+            docker run -d --name mediplus -p 80:80 ${{ steps.login-ecr.outputs.registry }}/mediplus:v${{ github.run_number }}
+
+            echo "✅ Deployed successfully!"
