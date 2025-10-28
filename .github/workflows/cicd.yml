@@ -1,4 +1,4 @@
-name: Build and Deploy Docker Image to EC2 via ECR
+name: Build and Deploy to EC2 via ECR
 
 on:
   push:
@@ -6,22 +6,20 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: mediplus
-  IMAGE_TAG: ${{ github.run_number }}
-  CONTAINER_NAME: mediplus_app
+  AWS_REGION: us-east-1                   # ✅ change if your region differs
+  ECR_REPOSITORY: mediplus                # ✅ must match your ECR repository name
+  CONTAINER_NAME: mediplus_app            # ✅ container name on EC2
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout source code
+      # Step 1: Checkout repository (no submodules)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          persist-credentials: false
+          submodules: false               # ✅ prevents ".gitmodules" error
 
       # Step 2: Configure AWS credentials
       - name: Configure AWS credentials
@@ -36,36 +34,41 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Step 4: Build, tag and push Docker image to ECR
-      - name: Build, Tag and Push Docker image
+      # Step 4: Build, tag, and push Docker image
+      - name: Build, Tag, and Push Docker image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           echo "Building Docker image..."
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "✅ Pushed image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          IMAGE_URI=${ECR_REGISTRY}/${ECR_REPOSITORY}:${{ github.run_number }}
+          echo "Image URI: $IMAGE_URI"
+          
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
+
+          echo "✅ Successfully pushed: $IMAGE_URI"
 
       # Step 5: Deploy to EC2 via SSH
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ec2-user
+          username: ec2-user                 # change to ubuntu if using Ubuntu EC2
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "Logging into ECR..."
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            echo "Logging in to ECR..."
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+              docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
 
             echo "Pulling latest image..."
-            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.run_number }}
 
-            echo "Stopping old container (if running)..."
+            echo "Stopping old container..."
             docker stop ${{ env.CONTAINER_NAME }} || true
             docker rm ${{ env.CONTAINER_NAME }} || true
 
-            echo "Running new container..."
-            docker run -d --name ${{ env.CONTAINER_NAME }} -p 80:80 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            echo "Starting new container..."
+            docker run -d --name ${{ env.CONTAINER_NAME }} -p 80:80 \
+              ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.run_number }}
 
             echo "✅ Deployment successful!"
