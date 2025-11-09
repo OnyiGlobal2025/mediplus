@@ -36,10 +36,10 @@ jobs:
           IMAGE_TAG=v1
 
           # Build image
-          docker build -t $IMAGE_NAME .
+          docker build -t $mediplus v1 .
 
           # Tag image for ECR
-          docker tag $IMAGE_NAME:v1 $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          docker tag $mediplus:v1 $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
 
           # Push image to ECR
           docker push $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
