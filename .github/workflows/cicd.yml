@@ -31,7 +31,7 @@ jobs:
       # Step 4: Build, tag, and push image to ECR
       - name: Build, Tag, and Push Docker Image
         run: |
-          IMAGE_NAME=mediplux
+          IMAGE_NAME=mediplus
           ECR_REGISTRY=713923090919.dkr.ecr.us-east-1.amazonaws.com
           IMAGE_TAG=latest
 
