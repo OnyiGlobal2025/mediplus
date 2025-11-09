@@ -1,22 +1,22 @@
-name: Build and Push Docker Image to ECR
+name: Build, Push to ECR, and Deploy to EC2
 
 on:
   push:
     branches:
-      - main  # Trigger workflow on push to main branch
+      - main  # Trigger on push to main branch
 
 jobs:
-  build-and-push:
+  deploy:
     runs-on: ubuntu-latest
 
     env:
-      AWS_REGION: us-east-1           # Change to your AWS region
-      ECR_REPOSITORY: mediplus        # Your ECR repository
-      IMAGE_TAG: ${{ github.sha }}    # Unique tag per commit
+      AWS_REGION: us-east-1
+      ECR_REPOSITORY: mediplus
+      IMAGE_TAG: ${{ github.sha }}  # Unique tag per commit
 
     steps:
       # 1️⃣ Checkout code
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       # 2️⃣ Configure AWS credentials
@@ -28,7 +28,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       # 3️⃣ Login to Amazon ECR
-      - name: Login to ECR
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
@@ -47,7 +47,21 @@ jobs:
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
-      # 7️⃣ Verify image in ECR
-      - name: Verify image in ECR
-        run: |
-          aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=${IMAGE_TAG} || echo "Image not found"
+      # 7️⃣ Deploy to EC2
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}          # EC2 public IP or DNS
+          username: ${{ secrets.EC2_USER }}      # Usually ec2-user or ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}        # Private key
+          script: |
+            # Stop and remove old container if exists
+            if [ $(docker ps -a -q -f name=mediplus) ]; then
+              docker stop mediplus
+              docker rm mediplus
+            fi
+            # Pull the latest image
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            docker pull ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}
+            # Run the new container
+            docker run -d --name mediplus -p 80:80 ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}
