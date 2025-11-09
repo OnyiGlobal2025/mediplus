@@ -33,13 +33,13 @@ jobs:
         run: |
           IMAGE_NAME=mediplus
           ECR_REGISTRY=713923090919.dkr.ecr.us-east-1.amazonaws.com
-          IMAGE_TAG=latest
+          IMAGE_TAG=v1
 
           # Build image
           docker build -t $IMAGE_NAME .
 
           # Tag image for ECR
-          docker tag $IMAGE_NAME:latest $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          docker tag $IMAGE_NAME:v1 $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
 
           # Push image to ECR
           docker push $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
