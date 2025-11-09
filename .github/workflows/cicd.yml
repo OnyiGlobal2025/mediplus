@@ -12,7 +12,7 @@ jobs:
     env:
       AWS_REGION: us-east-1
       ECR_REPOSITORY: mediplus
-      IMAGE_TAG: ${{ github.sha }}  # Unique tag per commit
+      IMAGE_TAG: latest  # Always use 'latest' for EC2 deployment
 
     steps:
       # 1️⃣ Checkout code
@@ -53,15 +53,19 @@ jobs:
         with:
           host: ${{ secrets.EC2_HOST }}          # EC2 public IP or DNS
           username: ${{ secrets.EC2_USER }}      # Usually ec2-user or ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}        # Private key
+          key: ${{ secrets.EC2_SSH_KEY }}        # Private key in PEM format
           script: |
             # Stop and remove old container if exists
             if [ $(docker ps -a -q -f name=mediplus) ]; then
               docker stop mediplus
               docker rm mediplus
             fi
-            # Pull the latest image
+
+            # Login to ECR
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+
+            # Pull the latest image
             docker pull ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}
-            # Run the new container
+
+            # Run the container
             docker run -d --name mediplus -p 80:80 ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}
