@@ -1,4 +1,4 @@
-# name: Build and Push to ECRname: Build, Tag, Push to ECR and Deploy to EC2
+name: Build, Tag, Push to ECR and Deploy to EC2
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1   # change region if needed
+          aws-region: us-east-1   # Change if your region is different
 
       # Step 3: Login to ECR
       - name: Login to Amazon ECR
@@ -28,7 +28,7 @@ jobs:
           aws ecr get-login-password --region us-east-1 | \
           docker login --username AWS --password-stdin 713923090919.dkr.ecr.us-east-1.amazonaws.com
 
-      # Step 4: Build, Tag, and Push Image (with version tag)
+      # Step 4: Build, Tag, and Push Docker Image (with version tag)
       - name: Build, tag, and push Docker image
         run: |
           IMAGE_NAME=mediplus
@@ -52,11 +52,12 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "Pulling new Docker image from ECR..."
+            echo "Logging in to ECR from EC2..."
             aws ecr get-login-password --region us-east-1 | \
             docker login --username AWS --password-stdin 713923090919.dkr.ecr.us-east-1.amazonaws.com
 
-            docker pull 713923090919.dkr.ecr.us-east-1.amazonaws.com/mediplux:latest
+            echo "Pulling new Docker image from ECR..."
+            docker pull 713923090919.dkr.ecr.us-east-1.amazonaws.com/mediplus:latest
 
             echo "Stopping and removing old container..."
             docker stop mediplus || true
