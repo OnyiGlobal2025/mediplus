@@ -1,21 +1,21 @@
-name: Build, Push Docker Image to ECR and Deploy to EC2
+name: Build and Push Docker Image to ECR
 
 on:
   push:
     branches:
-      - main  # Trigger workflow when pushing to main branch
+      - main  # Trigger workflow on push to main branch
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     env:
-      AWS_REGION: us-east-1          # Change to your AWS region
-      ECR_REPOSITORY: mediplus       # Your ECR repository name
-      IMAGE_TAG: ${{ github.sha }}   # Unique image tag per commit
+      AWS_REGION: us-east-1           # Change to your AWS region
+      ECR_REPOSITORY: mediplus        # Your ECR repository
+      IMAGE_TAG: ${{ github.sha }}    # Unique tag per commit
 
     steps:
-      # 1️⃣ Checkout your code
+      # 1️⃣ Checkout code
       - name: Checkout code
         uses: actions/checkout@v3
 
@@ -27,8 +27,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3️⃣ Login to ECR
-      - name: Login to Amazon ECR
+      # 3️⃣ Login to Amazon ECR
+      - name: Login to ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
@@ -47,24 +47,7 @@ jobs:
         run: |
           docker push ${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
-      # 7️⃣ Deploy to EC2
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            echo "Pulling latest Docker image from ECR..."
-            docker pull ${{ steps.login-ecr.outputs.registry }}/mediplus:${IMAGE_TAG}
-
-            echo "Stopping and removing existing container (if any)..."
-            if [ $(docker ps -a -q -f name=mediplus) ]; then
-              docker stop mediplus
-              docker rm mediplus
-            fi
-
-            echo "Starting new container..."
-            docker run -d --name mediplus -p 80:80 ${{ steps.login-ecr.outputs.registry }}/mediplus:${IMAGE_TAG}
-
-            echo "Deployment complete!"
+      # 7️⃣ Verify image in ECR
+      - name: Verify image in ECR
+        run: |
+          aws ecr describe-images --repository-name $ECR_REPOSITORY --image-ids imageTag=${IMAGE_TAG} || echo "Image not found"
